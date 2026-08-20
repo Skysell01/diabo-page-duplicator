@@ -1,5 +1,5 @@
 // ⚠️ GOOGLE APPS SCRIPT & CRM CONFIGURATION (Supports Vercel Environment Variables)
-const GOOGLE_SHEET_WEBHOOK_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbyPe4FxZyaHeHx3YLGD2fNpdgtulSraEB0mQ2U1pUKqvzyCkurPfqy6ymasPJHfjCuRgw/exec'; 
+const GOOGLE_SHEET_WEBHOOK_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbwVv4tYI69nc8UKZwmaQSA-ulxhsy5aZU_IyRGjIo1LnXjAIQ0QDQDbApXcnruls8jc/exec'; 
 const CRM_TOKEN = import.meta.env.VITE_CRM_TOKEN || 'M6JNcKxcNszQwNYZW';
 const CRM_CHANNEL_ID = import.meta.env.VITE_CRM_CHANNEL_ID || 'AMT-DBT-SKYSKM';
 const CRM_PRODUCT_ID = import.meta.env.VITE_CRM_PRODUCT_ID || '52'; 
@@ -57,20 +57,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const formSource = form.closest('.modal-card') ? 'Modal Form' : (index === 0 ? 'Top Form' : 'Bottom Form');
 
-      // If Webhook URL is set, send data to Google Apps Script & CRM
-      if (GOOGLE_SHEET_WEBHOOK_URL && GOOGLE_SHEET_WEBHOOK_URL.trim() !== '' && !GOOGLE_SHEET_WEBHOOK_URL.includes('YOUR_GOOGLE_APPS_SCRIPT_WEBHOOK_URL_HERE')) {
-        const originalBtnText = submitBtn ? submitBtn.innerText : 'ORDER NOW';
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.innerText = 'प्रक्रिया जारी है...';
-        }
+      // 1. Prepare Direct Macherbs CRM URL & Google Sheet Webhook URL
+      const originalBtnText = submitBtn ? submitBtn.innerText : 'ORDER NOW';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'प्रक्रिया जारी है...';
+      }
 
-        // Parallel trigger to CRM API directly from client side
-        const crmUrl = `https://macherbs.com/apileads/leads.php?token=${encodeURIComponent(CRM_TOKEN)}&channel_id=${encodeURIComponent(CRM_CHANNEL_ID)}&product_id=${encodeURIComponent(CRM_PRODUCT_ID)}&name=${encodeURIComponent(name)}&number=${encodeURIComponent(cleanPhone)}`;
-        fetch(crmUrl, { mode: 'no-cors' }).catch(err => console.log('Client CRM trigger sent'));
+      try {
+        // Direct Call to Macherbs CRM API
+        const crmParams = new URLSearchParams({
+          token: CRM_TOKEN,
+          channel_id: CRM_CHANNEL_ID,
+          product_id: CRM_PRODUCT_ID,
+          name: name,
+          number: cleanPhone
+        });
+        const directCrmUrl = `https://macherbs.com/apileads/leads.php?${crmParams.toString()}`;
 
-        try {
-          const payload = {
+        // Send to CRM and Google Sheet in Parallel
+        const crmPromise = fetch(directCrmUrl).then(res => res.json()).catch(() => null);
+        
+        let sheetPromise = Promise.resolve(null);
+        if (GOOGLE_SHEET_WEBHOOK_URL && GOOGLE_SHEET_WEBHOOK_URL.trim() !== '' && !GOOGLE_SHEET_WEBHOOK_URL.includes('YOUR_GOOGLE_APPS_SCRIPT_WEBHOOK_URL_HERE')) {
+          const sheetParams = new URLSearchParams({
             name: name,
             phone: phone,
             cleanPhone: cleanPhone,
@@ -78,51 +88,40 @@ document.addEventListener('DOMContentLoaded', () => {
             crmToken: CRM_TOKEN,
             crmChannelId: CRM_CHANNEL_ID,
             crmProductId: CRM_PRODUCT_ID,
-            timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
-          };
-
-          const response = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
-            method: 'POST',
-            mode: 'cors',
-            headers: {
-              'Content-Type': 'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify(payload)
+            _t: Date.now()
           });
+          const targetSheetUrl = `${GOOGLE_SHEET_WEBHOOK_URL}${GOOGLE_SHEET_WEBHOOK_URL.includes('?') ? '&' : '?'}${sheetParams.toString()}`;
+          sheetPromise = fetch(targetSheetUrl, { cache: 'no-cache' }).then(res => res.json()).catch(() => null);
+        }
 
-          const result = await response.json();
+        const [crmRes, sheetRes] = await Promise.all([crmPromise, sheetPromise]);
 
-          if (result.status === 'duplicate') {
-            alert(result.message || 'You have already submitted your detail, please wait for 24 hours. Our representative will call you in a while.');
-          } else {
-            alert('धन्यवाद! आपका ऑर्डर सफलतापूर्वक दर्ज कर लिया गया है। हम जल्द ही आपसे संपर्क करेंगे।');
-            nameInput.value = '';
-            phoneInput.value = '';
-            if (orderModal) {
-              orderModal.classList.remove('active');
-            }
-          }
-        } catch (error) {
-          console.error('Submission error:', error);
+        // Check if either CRM or Google Sheet flagged duplicate
+        const isCrmDuplicate = crmRes && (crmRes.message === 'user already exist' || crmRes.error === 'user already exist');
+        const isSheetDuplicate = sheetRes && sheetRes.status === 'duplicate';
+
+        if (isCrmDuplicate || isSheetDuplicate) {
+          alert('You have already submitted your detail, please wait for 24 hours. Our representative will call you in a while.');
+        } else {
           alert('धन्यवाद! आपका ऑर्डर सफलतापूर्वक दर्ज कर लिया गया है। हम जल्द ही आपसे संपर्क करेंगे।');
           nameInput.value = '';
           phoneInput.value = '';
           if (orderModal) {
             orderModal.classList.remove('active');
           }
-        } finally {
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerText = originalBtnText;
-          }
         }
-      } else {
-        // Fallback when Webhook URL is not yet configured
+      } catch (error) {
+        console.error('Submission error:', error);
         alert('धन्यवाद! आपका ऑर्डर सफलतापूर्वक दर्ज कर लिया गया है। हम जल्द ही आपसे संपर्क करेंगे।');
         nameInput.value = '';
         phoneInput.value = '';
         if (orderModal) {
           orderModal.classList.remove('active');
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = originalBtnText;
         }
       }
     });
