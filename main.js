@@ -1,7 +1,8 @@
-// main.js - Interactive behaviors & Google Sheet Integration for Diabeet Landing Page
-
-// ⚠️ GOOGLE APPS SCRIPT WEB APP URL FOR LEAD SYNC & DUPLICATE CHECK
-const GOOGLE_SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbyPe4FxZyaHeHx3YLGD2fNpdgtulSraEB0mQ2U1pUKqvzyCkurPfqy6ymasPJHfjCuRgw/exec'; 
+// ⚠️ GOOGLE APPS SCRIPT & CRM CONFIGURATION (Supports Vercel Environment Variables)
+const GOOGLE_SHEET_WEBHOOK_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbyPe4FxZyaHeHx3YLGD2fNpdgtulSraEB0mQ2U1pUKqvzyCkurPfqy6ymasPJHfjCuRgw/exec'; 
+const CRM_TOKEN = import.meta.env.VITE_CRM_TOKEN || 'M6JNcKxcNszQwNYZW';
+const CRM_CHANNEL_ID = import.meta.env.VITE_CRM_CHANNEL_ID || 'AMT-DBT-SKYSKM';
+const CRM_PRODUCT_ID = import.meta.env.VITE_CRM_PRODUCT_ID || '52'; 
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -65,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Parallel trigger to CRM API directly from client side
-        const crmUrl = `https://macherbs.com/apileads/leads.php?token=M6JNcKxcNszQwNYZW&channel_id=AMT-DBT-SKYSKM&product_id=52&name=${encodeURIComponent(name)}&number=${encodeURIComponent(cleanPhone)}`;
+        const crmUrl = `https://macherbs.com/apileads/leads.php?token=${encodeURIComponent(CRM_TOKEN)}&channel_id=${encodeURIComponent(CRM_CHANNEL_ID)}&product_id=${encodeURIComponent(CRM_PRODUCT_ID)}&name=${encodeURIComponent(name)}&number=${encodeURIComponent(cleanPhone)}`;
         fetch(crmUrl, { mode: 'no-cors' }).catch(err => console.log('Client CRM trigger sent'));
 
         try {
@@ -74,9 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
             phone: phone,
             cleanPhone: cleanPhone,
             formSource: formSource,
-            crmToken: "M6JNcKxcNszQwNYZW",
-            crmChannelId: "AMT-DBT-SKYSKM",
-            crmProductId: "52",
+            crmToken: CRM_TOKEN,
+            crmChannelId: CRM_CHANNEL_ID,
+            crmProductId: CRM_PRODUCT_ID,
             timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
           };
 
