@@ -103,6 +103,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isCrmDuplicate || isSheetDuplicate) {
           alert('You have already submitted your detail, please wait for 24 hours. Our representative will call you in a while.');
         } else {
+          // Trigger Meta Pixel Lead Event (Prevents overtracking/undertracking)
+          if (typeof window.fbq === 'function') {
+            window.fbq('track', 'Lead', {
+              content_name: 'Diabeet Order',
+              value: 2490.00,
+              currency: 'INR'
+            });
+          }
+
           alert('धन्यवाद! आपका ऑर्डर सफलतापूर्वक दर्ज कर लिया गया है। हम जल्द ही आपसे संपर्क करेंगे।');
           nameInput.value = '';
           phoneInput.value = '';
